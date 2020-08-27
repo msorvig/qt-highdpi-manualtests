@@ -54,8 +54,10 @@ public:
         if (displayLogicalDpi)
             layout->addWidget(dpiLabel);
 
-        if (g_devicePixelRatio)
-            layout->addWidget(new QLabel(QString("QT_SCALE_FACTOR %1").arg(qgetenv("QT_SCALE_FACTOR"))));
+        if (g_devicePixelRatio) {
+            QString text = QString("QT_SCALE_FACTOR ") + qgetenv("QT_SCALE_FACTOR");
+            layout->addWidget(new QLabel(text));
+        }
 
         layout->addStretch();
         layout->addWidget(screenLabel);
