@@ -2,8 +2,19 @@
 
 #include <QtGui/qpa/qplatformscreen.h>
 
-bool g_usePhysicalDpi = false;
-bool g_devicePixelRatio = false;
+/*
+    DprGadget: The focused High-DPI settings debug utility
+
+    DprGadget displays the device pixel ratio ("DPR") for the screen
+    it's on in a large font, as well as the inputs (from the platform
+    plugin or environment) currently in use for determinging the DPR.
+
+    Non-relevant inputs are not displayed. See qttools/src/qtdiag for
+    an utility which displays all inputs.
+*/
+
+bool g_qtUsePhysicalDpi = false;
+bool g_qtScaleFactor = false;
 
 class DprGadget : public QWidget
 {
@@ -34,6 +45,10 @@ public:
         dpiLabel->setFont(smallFont);
         dpiLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
+        QLabel *sizeLabel = new QLabel("Window size:");
+        sizeLabel->setFont(smallFont);
+        sizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
         QLabel *platformDpiLabel = new QLabel("Native Device Pixel Ratio:");
         QLabel *plarformDprLabel = new QLabel("Native Logical DPI:");
         platformDpiLabel->setFont(smallFont);
@@ -49,12 +64,13 @@ public:
         layout->setAlignment(dprLabel, Qt::AlignHCenter);
         layout->addWidget(dprValue);
         layout->setAlignment(dprValue, Qt::AlignHCenter);
+        layout->addWidget(sizeLabel);
 
         bool displayLogicalDpi = false;
         if (displayLogicalDpi)
             layout->addWidget(dpiLabel);
 
-        if (g_devicePixelRatio) {
+        if (g_qtScaleFactor) {
             QString text = QString("QT_SCALE_FACTOR ") + qgetenv("QT_SCALE_FACTOR");
             layout->addWidget(new QLabel(text));
         }
@@ -67,10 +83,11 @@ public:
         auto updateValues = [=]() {
             dprValue->setText(QString("%1").arg(devicePixelRatioF()));
             dpiLabel->setText(QString("Logical DPI: %1").arg(logicalDpiX()));
+            sizeLabel->setText(QString("Window size: %1 %2").arg(width()).arg(height()));
 
             QPlatformScreen *pscreen = screen()->handle();
 
-            if (g_usePhysicalDpi)
+            if (g_qtUsePhysicalDpi)
                 platformDpiLabel->setText(QString("Native Physical DPI: TODO"));
             else
                 platformDpiLabel->setText(QString("Native Logical DPI: %1").arg(pscreen->logicalDpi().first));
@@ -105,6 +122,10 @@ public:
 
         m_updateFn();
     }
+    
+    void resizeEvent(QResizeEvent *) override {
+        m_updateFn();
+    }
 
     void mousePressEvent(QMouseEvent *) override {
         m_clearFn();
@@ -121,13 +142,17 @@ int main(int argc, char **argv) {
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     // react to (some) high-dpi eviornment variables.
-    g_usePhysicalDpi = qgetenv("QT_USE_PHYSICAL_DPI") == QByteArray("1");
-    g_devicePixelRatio = qEnvironmentVariableIsSet("QT_SCALE_FACTOR");
+    g_qtUsePhysicalDpi = qgetenv("QT_USE_PHYSICAL_DPI") == QByteArray("1");
+    g_qtScaleFactor = qEnvironmentVariableIsSet("QT_SCALE_FACTOR");
 
     QApplication app(argc, argv);
 
     DprGadget dprGadget;
-    dprGadget.resize(320, 300);
+
+    // Set inital size. We expect this size to be preserved across screen
+    // and DPI changes
+    dprGadget.resize(560, 380); 
+
     dprGadget.show();
 
     return app.exec();
