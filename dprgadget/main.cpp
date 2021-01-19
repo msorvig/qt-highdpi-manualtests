@@ -1,6 +1,7 @@
-#include <QtWidgets/QtWidgets>
-
 #include <QtGui/qpa/qplatformscreen.h>
+#include <QtGui/qpa/qplatformwindow.h>
+#include <QtWidgets/QtWidgets>
+#include <iostream>
 
 /*
     DprGadget: The focused High-DPI settings debug utility
@@ -22,10 +23,13 @@ public:
     std::function<void(void)> m_clearFn;
     std::function<void(void)> m_updateFn;
     qreal m_currentDpr = -1;
+    QString m_eventsText;
 
     DprGadget() {
         setWindowTitle("DprGadget");
 
+        QFont tinyFont;
+        tinyFont.setPointSize(8);
         QFont smallFont;
         smallFont.setPointSize(12);
         QFont bigFont;
@@ -41,71 +45,119 @@ public:
         dprValue->setFont(biggerFont);
         dprValue->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-        QLabel *dpiLabel = new QLabel("Logical DPI:");
-        dpiLabel->setFont(smallFont);
-        dpiLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        QLabel *screenLabel = new QLabel("Current Screen:");
+        screenLabel->setFont(smallFont);
 
         QLabel *sizeLabel = new QLabel("Window size:");
         sizeLabel->setFont(smallFont);
         sizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
+        QLabel *nativeSizeLabel = new QLabel("Native:");
+        sizeLabel->setFont(smallFont);
+        sizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        QLabel *dpiLabel = new QLabel("Logical DPI:");
+        dpiLabel->setFont(smallFont);
+        dpiLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        QLabel *windowDpiLabel = new QLabel("Window DPI:");
+        windowDpiLabel->setFont(smallFont);
+        windowDpiLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
         QLabel *platformDpiLabel = new QLabel("Native Device Pixel Ratio:");
-        QLabel *plarformDprLabel = new QLabel("Native Logical DPI:");
         platformDpiLabel->setFont(smallFont);
         platformDpiLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        QLabel *windowDprLabel = new QLabel("Window DPR:");
+        windowDprLabel->setFont(smallFont);
+        windowDprLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+        QLabel *plarformDprLabel = new QLabel("Native Logical DPI:");
         plarformDprLabel->setFont(smallFont);
         plarformDprLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-        QLabel *screenLabel = new QLabel("Current Screen:");
-        screenLabel->setFont(smallFont);
+        QLabel *eventsLabel = new QLabel(m_eventsText);
+        eventsLabel->setFont(tinyFont);
+        eventsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
         QVBoxLayout *layout = new QVBoxLayout();
         layout->addWidget(dprLabel);
         layout->setAlignment(dprLabel, Qt::AlignHCenter);
         layout->addWidget(dprValue);
         layout->setAlignment(dprValue, Qt::AlignHCenter);
-        layout->addWidget(sizeLabel);
 
         bool displayLogicalDpi = false;
         if (displayLogicalDpi)
             layout->addWidget(dpiLabel);
 
-        if (g_qtScaleFactor) {
-            QString text = QString("QT_SCALE_FACTOR ") + qgetenv("QT_SCALE_FACTOR");
-            layout->addWidget(new QLabel(text));
-        }
-
         layout->addStretch();
-        layout->addWidget(screenLabel);
-        layout->addWidget(platformDpiLabel);
-        layout->addWidget(plarformDprLabel);
+
+        QHBoxLayout *screenLabelLayout = new QHBoxLayout();
+        screenLabelLayout->addStretch();
+        screenLabelLayout->addWidget(screenLabel);
+        screenLabelLayout->addStretch();
+        layout->addLayout(screenLabelLayout);
+
+        QHBoxLayout *windowSizeLayout = new QHBoxLayout();
+        windowSizeLayout->addWidget(sizeLabel);
+        windowSizeLayout->addStretch();
+        windowSizeLayout->addWidget(nativeSizeLabel);
+        layout->addLayout(windowSizeLayout);
+
+        QHBoxLayout *dpiLayout = new QHBoxLayout();
+        dpiLayout->addWidget(windowDpiLabel);
+        dpiLayout->addStretch();
+        dpiLayout->addWidget(platformDpiLabel);
+        layout->addLayout(dpiLayout);
+
+        QHBoxLayout *dprLayout = new QHBoxLayout();
+        dprLayout->addWidget(windowDprLabel);
+        dprLayout->addStretch();
+        dprLayout->addWidget(plarformDprLabel);
+        layout->addLayout(dprLayout);
+
+        layout->addWidget(eventsLabel);
+
+        if (g_qtScaleFactor) {
+            layout->addWidget(new QLabel("Active Environent:"));
+            QString scaleFactorText = QString("QT_SCALE_FACTOR ") + qgetenv("QT_SCALE_FACTOR");
+            layout->addWidget(new QLabel(scaleFactorText));
+        }
 
         auto updateValues = [=]() {
             dprValue->setText(QString("%1").arg(devicePixelRatioF()));
+            windowDpiLabel->setText(QString("Window DPI: %1").arg(logicalDpiX()));
             dpiLabel->setText(QString("Logical DPI: %1").arg(logicalDpiX()));
             sizeLabel->setText(QString("Window size: %1 %2").arg(width()).arg(height()));
 
+            QPlatformWindow *platformWindow = windowHandle()->handle();
+            nativeSizeLabel->setText(QString("native size %1 %2").arg(platformWindow->geometry().width())
+                                                            .arg(platformWindow->geometry().height()));
             QPlatformScreen *pscreen = screen()->handle();
-
             if (g_qtUsePhysicalDpi)
                 platformDpiLabel->setText(QString("Native Physical DPI: TODO"));
             else
-                platformDpiLabel->setText(QString("Native Logical DPI: %1").arg(pscreen->logicalDpi().first));
+                platformDpiLabel->setText(QString("native logical DPI: %1").arg(pscreen->logicalDpi().first));
 
-            plarformDprLabel->setText(QString("Native Device Pixel Ratio: %1").arg(pscreen->devicePixelRatio()));
+            windowDprLabel->setText(QString("Window DPR: %1").arg(windowHandle()->devicePixelRatio()));
+            plarformDprLabel->setText(QString("native DPR: %1").arg(pscreen->devicePixelRatio()));
 
             screenLabel->setText(QString("Current Screen: %1").arg(screen()->name()));
+            eventsLabel->setText(QString(m_eventsText));
         };
         m_updateFn = updateValues;
 
         m_clearFn = [=]() {
             dprValue->setText(QString(""));
+            m_eventsText.clear();
         };
 
         create();
 
-        QObject::connect(this->windowHandle(), &QWindow::screenChanged, [updateValues](QScreen *screen){
+        QObject::connect(this->windowHandle(), &QWindow::screenChanged, [updateValues, this](QScreen *screen){
             Q_UNUSED(screen);
+            this->m_eventsText.prepend(QString("ScreenChange "));
+            this->m_eventsText.truncate(80);
             updateValues();
         });
 
@@ -115,6 +167,12 @@ public:
     }
 
     void paintEvent(QPaintEvent *) override  {
+
+        // Update the UI in the paint event - normally not good
+        // practice but it looks like we can get away with it there
+        this->m_eventsText.prepend(QString("Paint "));
+        this->m_eventsText.truncate(80);
+
         // Dpr change should trigger a repaint, update display values here
         if (m_currentDpr == devicePixelRatioF())
             return;
@@ -122,8 +180,12 @@ public:
 
         m_updateFn();
     }
-    
-    void resizeEvent(QResizeEvent *) override {
+
+    void resizeEvent(QResizeEvent *event) override {
+        qDebug() << "resize";
+        QSize size = event->size();
+        m_eventsText.prepend(QString("Resize(%1 %2) ").arg(size.width()).arg(size.height()));
+        m_eventsText.truncate(80);
         m_updateFn();
     }
 
@@ -151,9 +213,15 @@ int main(int argc, char **argv) {
 
     // Set inital size. We expect this size to be preserved across screen
     // and DPI changes
-    dprGadget.resize(560, 380); 
+//    dprGadget.resize(560, 380);
 
     dprGadget.show();
+
+    QTimer::singleShot(1000, [&] () {
+        for( int i = 0; i < qApp->screens().size(); i++ ) {
+           std::cout << "Screen factor: " << qApp->screens().at( i )->devicePixelRatio() << std::endl;
+        }
+    });
 
     return app.exec();
 }
