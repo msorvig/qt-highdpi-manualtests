@@ -16,6 +16,7 @@
 
 bool g_qtUsePhysicalDpi = false;
 bool g_qtScaleFactor = false;
+bool g_displayEvents = false;
 
 class DprGadget : public QWidget
 {
@@ -53,8 +54,8 @@ public:
         sizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
         QLabel *nativeSizeLabel = new QLabel("Native:");
-        sizeLabel->setFont(smallFont);
-        sizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        nativeSizeLabel->setFont(smallFont);
+        nativeSizeLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
         QLabel *dpiLabel = new QLabel("Logical DPI:");
         dpiLabel->setFont(smallFont);
@@ -72,7 +73,7 @@ public:
         windowDprLabel->setFont(smallFont);
         windowDprLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
-        QLabel *plarformDprLabel = new QLabel("Native Logical DPI:");
+        QLabel *plarformDprLabel = new QLabel("Native DPI:");
         plarformDprLabel->setFont(smallFont);
         plarformDprLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 
@@ -116,7 +117,8 @@ public:
         dprLayout->addWidget(plarformDprLabel);
         layout->addLayout(dprLayout);
 
-        layout->addWidget(eventsLabel);
+        if (g_displayEvents)
+            layout->addWidget(eventsLabel);
 
         if (g_qtScaleFactor) {
             layout->addWidget(new QLabel("Active Environent:"));
@@ -169,7 +171,7 @@ public:
     void paintEvent(QPaintEvent *) override  {
 
         // Update the UI in the paint event - normally not good
-        // practice but it looks like we can get away with it there
+        // practice but it looks like we can get away with it here
         this->m_eventsText.prepend(QString("Paint "));
         this->m_eventsText.truncate(80);
 
@@ -182,7 +184,6 @@ public:
     }
 
     void resizeEvent(QResizeEvent *event) override {
-        qDebug() << "resize";
         QSize size = event->size();
         m_eventsText.prepend(QString("Resize(%1 %2) ").arg(size.width()).arg(size.height()));
         m_eventsText.truncate(80);
@@ -216,12 +217,6 @@ int main(int argc, char **argv) {
 //    dprGadget.resize(560, 380);
 
     dprGadget.show();
-
-    QTimer::singleShot(1000, [&] () {
-        for( int i = 0; i < qApp->screens().size(); i++ ) {
-           std::cout << "Screen factor: " << qApp->screens().at( i )->devicePixelRatio() << std::endl;
-        }
-    });
 
     return app.exec();
 }
