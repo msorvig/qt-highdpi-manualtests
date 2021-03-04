@@ -1,5 +1,6 @@
 #include <QtGui/qpa/qplatformscreen.h>
 #include <QtGui/qpa/qplatformwindow.h>
+#include <QtGui/private/qhighdpiscaling_p.h>
 #include <QtWidgets/QtWidgets>
 #include <iostream>
 
@@ -14,9 +15,12 @@
     an utility which displays all inputs.
 */
 
-bool g_qtUsePhysicalDpi = false;
 bool g_qtScaleFactor = false;
+bool g_qtUsePhysicalDpi = false;
+bool g_qtFontDpi = false;
+bool g_qtScaleFactorRoundingPolicy = false;
 bool g_displayEvents = false;
+
 
 class DprGadget : public QWidget
 {
@@ -76,6 +80,9 @@ public:
         QLabel *plarformDprLabel = new QLabel("Native DPI:");
         plarformDprLabel->setFont(smallFont);
         plarformDprLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
+        
+        QLabel *qtScaleFactorLabel = new QLabel("Qt Internal Scale Factor:");
+        qtScaleFactorLabel->setFont(smallFont);
 
         QLabel *eventsLabel = new QLabel(m_eventsText);
         eventsLabel->setFont(tinyFont);
@@ -116,35 +123,60 @@ public:
         dprLayout->addStretch();
         dprLayout->addWidget(plarformDprLabel);
         layout->addLayout(dprLayout);
+        
+        QHBoxLayout *qtScaleFactorLabelLayout = new QHBoxLayout();
+        qtScaleFactorLabelLayout->addStretch();
+        qtScaleFactorLabelLayout->addWidget(qtScaleFactorLabel);
+        qtScaleFactorLabelLayout->addStretch();
+        layout->addLayout(qtScaleFactorLabelLayout);
 
         if (g_displayEvents)
             layout->addWidget(eventsLabel);
 
-        if (g_qtScaleFactor) {
+        bool activeEnvironment = g_qtScaleFactor || g_qtUsePhysicalDpi || g_qtFontDpi || g_qtScaleFactorRoundingPolicy;
+        if (activeEnvironment) {
             layout->addWidget(new QLabel("Active Environent:"));
-            QString scaleFactorText = QString("QT_SCALE_FACTOR ") + qgetenv("QT_SCALE_FACTOR");
-            layout->addWidget(new QLabel(scaleFactorText));
+            if (g_qtScaleFactor) {
+                QString text = QString("QT_SCALE_FACTOR=") + qgetenv("QT_SCALE_FACTOR");
+                layout->addWidget(new QLabel(text));
+            }
+            if (g_qtUsePhysicalDpi) {
+                QString text = QString("QT_USE_PHYSICAL_DPI=") + qgetenv("QT_USE_PHYSICAL_DPI");
+                layout->addWidget(new QLabel(text));
+            }
+            if (g_qtFontDpi) {
+                QString text = QString("QT_FONT_DPI=") + qgetenv("QT_FONT_DPI");
+                layout->addWidget(new QLabel(text));
+            }
+            if (g_qtScaleFactorRoundingPolicy) {
+                QString text = QString("QT_SCALE_FACTOR_ROUNDING_POLICY=") + qgetenv("QT_SCALE_FACTOR_ROUNDING_POLICY");
+                layout->addWidget(new QLabel(text));
+            }
+            
         }
 
         auto updateValues = [=]() {
             dprValue->setText(QString("%1").arg(devicePixelRatioF()));
-            windowDpiLabel->setText(QString("Window DPI: %1").arg(logicalDpiX()));
+            windowDpiLabel->setText(QString("QWindow DPI: %1").arg(logicalDpiX()));
             dpiLabel->setText(QString("Logical DPI: %1").arg(logicalDpiX()));
-            sizeLabel->setText(QString("Window size: %1 %2").arg(width()).arg(height()));
+            sizeLabel->setText(QString("QWindow size: %1 %2").arg(width()).arg(height()));
 
             QPlatformWindow *platformWindow = windowHandle()->handle();
             nativeSizeLabel->setText(QString("native size %1 %2").arg(platformWindow->geometry().width())
                                                             .arg(platformWindow->geometry().height()));
             QPlatformScreen *pscreen = screen()->handle();
-            if (g_qtUsePhysicalDpi)
-                platformDpiLabel->setText(QString("Native Physical DPI: TODO"));
-            else
+            if (g_qtUsePhysicalDpi) {
+                int physicalDpi = qRound(pscreen->geometry().width() / pscreen->physicalSize().width() * qreal(25.4));
+                platformDpiLabel->setText(QString("Native Physical DPI: %1").arg(physicalDpi));
+            } else {
                 platformDpiLabel->setText(QString("native logical DPI: %1").arg(pscreen->logicalDpi().first));
+            }
 
-            windowDprLabel->setText(QString("Window DPR: %1").arg(windowHandle()->devicePixelRatio()));
+            windowDprLabel->setText(QString("QWindow DPR: %1").arg(windowHandle()->devicePixelRatio()));
             plarformDprLabel->setText(QString("native DPR: %1").arg(pscreen->devicePixelRatio()));
 
             screenLabel->setText(QString("Current Screen: %1").arg(screen()->name()));
+            qtScaleFactorLabel->setText(QString("Qt Internal Scale Factor: %1").arg(QHighDpiScaling::factor(windowHandle())));
             eventsLabel->setText(QString(m_eventsText));
         };
         m_updateFn = updateValues;
@@ -204,9 +236,11 @@ int main(int argc, char **argv) {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
-    // react to (some) high-dpi eviornment variables.
-    g_qtUsePhysicalDpi = qgetenv("QT_USE_PHYSICAL_DPI") == QByteArray("1");
+    // Display any set high-dpi eviornment variable.
     g_qtScaleFactor = qEnvironmentVariableIsSet("QT_SCALE_FACTOR");
+    g_qtUsePhysicalDpi = qgetenv("QT_USE_PHYSICAL_DPI") == QByteArray("1");
+    g_qtFontDpi = qEnvironmentVariableIsSet("QT_FONT_DPI");
+    g_qtScaleFactorRoundingPolicy = qEnvironmentVariableIsSet("QT_SCALE_FACTOR_ROUNDING_POLICY");
 
     QApplication app(argc, argv);
 
