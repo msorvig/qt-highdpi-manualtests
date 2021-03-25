@@ -5,6 +5,9 @@
 #include <qpa/qplatformwindow.h>
 #include <qpa/qplatformcursor.h>
 
+// This test app optionally doubles as a manual test for QScreen::mapToNative()
+// #define TEST_MAP_TO_NATIVE
+
 // ScreenDisplayer based on original impl from qtbase/tests/manual/highdpi
 class ScreenDisplayer : public QWidget
 {
@@ -25,6 +28,14 @@ public:
         setWindowTitle(windowDebug);
     }
 
+    void updateMapToNative(QPointF pos)
+    {
+#ifdef TEST_MAP_TO_NATIVE
+        mappedToNative = QGuiApplication::mapToNative(QRectF(pos, QPointF(1,1))).topLeft();                  // there
+        mappedFromNative = QGuiApplication::mapFromNative(QRectF(mappedToNative, QPointF(1,1))).topLeft();   // and back again
+#endif
+    }
+
     void timerEvent(QTimerEvent *) override
     {
         update();
@@ -33,11 +44,13 @@ public:
 
     void mousePressEvent(QMouseEvent *) override
     {
+        displayMappedToNativeCursor = true;
     }
 
     void mouseMoveEvent(QMouseEvent *e) override
     {
         setTitle();
+        updateMapToNative(e->globalPos());
     }
 
     void mouseReleaseEvent(QMouseEvent *) override
@@ -53,7 +66,7 @@ public:
     {
         refreshTimer.stop();
     }
-    
+
     void paintScreensInRect(QPainter &p, QRect rect, bool native) {
         p.save();
 
@@ -106,21 +119,37 @@ public:
                     << QPoint(30, 50) << QPoint(60, 80)
                     << QPoint(80, 60) << QPoint(50, 30)
                     << QPoint(60, 20);
-        cursorShape.translate(native ? qApp->primaryScreen()->handle()->cursor()->pos() :  QCursor::pos());
+
+        p.save();
+        p.translate(native ? qApp->primaryScreen()->handle()->cursor()->pos() : QCursor::pos());
         p.drawPolygon(cursorShape);
-        
+        p.restore();
+
+#ifdef TEST_MAP_TO_NATIVE
+        // Draw red "mapped to native" cursor. We expect this
+        // cursor to track the normal blue cursor if everything
+        // works out ok.
+        if (displayMappedToNativeCursor) {
+            p.save();
+            p.setBrush(QColor(230,120,155,127));
+            p.translate(native ? mappedToNative: mappedFromNative);
+            p.drawPolygon(cursorShape);
+            p.restore();
+        }
+#endif
+
         p.restore();
     }
 
     void paintEvent(QPaintEvent *) override
     {
         QPainter p(this);
-        
+
         QRect g = geometry();
         int halfHeight = g.height() / 2;
         QRect topHalf = QRect(0, 0, g.width(), halfHeight);
         QRect bottomHalf = QRect(0, halfHeight, g.width(), halfHeight);
-        
+
         if (displayDeviceIndependentGeometry)
             paintScreensInRect(p, topHalf, false);
         if (displayNativeGeometry)
@@ -131,6 +160,9 @@ public:
     bool displayDeviceIndependentGeometry = true;
     bool displayNativeGeometry = false;
 private:
+    bool displayMappedToNativeCursor = false;
+    QPointF mappedToNative;
+    QPointF mappedFromNative;
     qreal scaleFactor = 1;
     QBasicTimer refreshTimer;
 };
@@ -139,10 +171,10 @@ class Controller : public QWidget {
 public:
     Controller(ScreenDisplayer *displayer) {
         setWindowTitle("Controller");
-        
+
         QVBoxLayout *layout = new QVBoxLayout();
         setLayout(layout);
-        
+
         layout->addWidget(new QLabel("Coordinate System:"));
 
         QCheckBox *deviceIndpendentGeometry = new QCheckBox("Device Independent");
@@ -154,9 +186,9 @@ public:
         nativeGeometry->setChecked(false);
         connect(nativeGeometry, &QCheckBox::stateChanged, [displayer](int checked){ displayer->displayNativeGeometry = checked > 0; });
         layout->addWidget(nativeGeometry);
-        
+
         layout->addSpacing(40);
-        
+
         QCheckBox *numbers = new QCheckBox("Numbers!");
         numbers->setChecked(false);
         connect(numbers, &QCheckBox::stateChanged, [displayer](int checked){ displayer->displayInfo = checked > 0; });
@@ -167,13 +199,13 @@ public:
 };
 
 int main(int argc, char **argv) {
-    
+
     QApplication app(argc, argv);
-    
+
     ScreenDisplayer displayer;
     displayer.resize(300, 200);
     displayer.show();
-    
+
     Controller controller(&displayer);
     controller.resize(100, 200);
 
@@ -181,6 +213,6 @@ int main(int argc, char **argv) {
         controller.move(displayer.pos() + QPoint(displayer.width(), 0) + QPoint(50, 0));
         controller.show();
     });
-    
+
     return app.exec();
 }
