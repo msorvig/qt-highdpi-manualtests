@@ -31,7 +31,7 @@ public:
     QString m_eventsText;
 
     DprGadget() {
-        setWindowTitle("DprGadget");
+        setWindowTitle(QString("DprGadget - Qt %1").arg(qVersion()));
 
         QFont tinyFont;
         tinyFont.setPointSize(8);
