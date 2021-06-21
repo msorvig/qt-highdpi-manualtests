@@ -168,6 +168,8 @@ private:
 };
 
 class Controller : public QWidget {
+    int screenIndex = 0;
+
 public:
     Controller(ScreenDisplayer *displayer) {
         setWindowTitle("Controller");
@@ -193,6 +195,17 @@ public:
         numbers->setChecked(false);
         connect(numbers, &QCheckBox::stateChanged, [displayer](int checked){ displayer->displayInfo = checked > 0; });
         layout->addWidget(numbers);
+
+        QPushButton *jump = new QPushButton("Next Screen");
+        connect(jump, &QPushButton::clicked, [this](){
+            QList<QScreen *> screens = qApp->screens();
+            ++this->screenIndex;
+            if (this->screenIndex >= screens.count())
+                this->screenIndex = 0;
+            QPoint newPos = screens.at(this->screenIndex)->geometry().center();
+            this->move(newPos);
+        });
+        layout->addWidget(jump);
 
         layout->addStretch();
     }
